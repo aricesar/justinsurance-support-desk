@@ -96,3 +96,31 @@ semantics, operator recovery, verification and production limitations.
 - `.github/workflows/test.yml` configures Node 24 tests on Ubuntu and Windows,
   read-only repository permissions and no dependency-install step. It runs after
   the workflow is pushed; configuring it locally does not prove a remote run.
+
+### Timeline and immutable saved revisions
+
+Every new draft save creates a read-only revision with its exact text, author and
+save time in the same transaction as the current draft and audit update. Approval
+and dispatch reference that revision. A later edit clears active approval while
+retaining the previous text and historical approval record. **Saved draft history**
+shows available versions, approval events and associated dispatch attempts.
+
+The conversation timeline interleaves inbound messages, saved/approved drafts,
+dispatch and delivery events in persisted local processing order. Its sequence
+remains stable across restarts and tied/backwards timestamps. Dispatch appears
+as PENDING; later UNKNOWN/SENT entries update the history without adding a second
+copy of the reply. Timestamps show desk processing time, not provider event time.
+
+`GET /api/tickets/:id` retains its existing fields and adds `revisions`, `timeline`
+and `legacy_history`. These fields use the same server-side tenant authorization.
+No new HTTP routes or write actions for historical revisions were added.
+
+Schema migration 2 recovers available old snapshots from attempts/current drafts
+and links existing audit evidence. Missing historical text, save times or authors
+are not invented. Records without known ordering appear separately as **Earlier
+history**. Conflicting bodies for the same old ticket/version abort migration
+without overwriting those records and require investigation. New snapshots reject
+updates, deletion and replacement; attempt links must match ticket/version/text.
+
+The published pre-enhancement commit `7f6ba4f` passed GitHub Actions on Windows and
+Ubuntu. This local history enhancement requires its own CI run after publication.

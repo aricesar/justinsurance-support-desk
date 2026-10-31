@@ -50,7 +50,75 @@ function controls() {
   $('discard').disabled = busy || !dirty;
 }
 
-function displayTime(value) { return value ? new Date(value).toLocaleString() : 'Not recorded (legacy attempt)'; }
+function displayTime(value) {
+  if (!value) return 'Not recorded';
+  const iso = value.includes('T') ? value : value.replace(' ', 'T') + 'Z';
+  return new Date(iso).toLocaleString('en-US', { year: 'numeric', month: 'short', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short' });
+}
+
+const eventLabels = {
+  inbound: 'Customer message', draft_updated: 'Draft saved', approved: 'Draft approved',
+  dispatch_reserved: 'Reply dispatch started; delivery pending', dispatch_result: 'Provider delivery result',
+  delivery_confirmed: 'Delivery confirmed by lookup', lookup_inconclusive: 'Delivery check inconclusive; do not resend',
+  recovered_unknown: 'Interrupted dispatch recovered as uncertain', human_handoff: 'Human takeover',
+  sent: 'Legacy send recorded', legacy_inbound: 'Historical customer message', legacy_attempt: 'Historical dispatch attempt'
+};
+
+function timelineItem(event, { legacy = false } = {}) {
+  const item = document.createElement('li');
+  const heading = document.createElement('strong');
+  heading.textContent = `${eventLabels[event.kind] || event.kind}${event.version == null ? '' : ` · v${event.version}`}${event.state ? ` · ${event.state}` : ''}`;
+  const metadata = document.createElement('p');
+  metadata.className = 'event-meta';
+  metadata.textContent = `${legacy ? 'Original order not recorded' : `Event #${event.sequence}`} · ${displayTime(event.occurred_at)}${event.actor_id ? ` · ${event.actor_id}` : ''}${event.client_ref ? ` · Reference: ${event.client_ref}` : ''}`;
+  item.append(heading, metadata);
+  if (event.body !== null && event.body !== undefined) {
+    const body = document.createElement('p');
+    body.className = 'message-text';
+    body.textContent = event.body;
+    item.append(body);
+  }
+  return item;
+}
+
+function renderHistory(ticket) {
+  const timeline = ticket.timeline.map(event => timelineItem(event));
+  if (!timeline.length) {
+    const empty = document.createElement('li');
+    empty.textContent = 'No recorded events yet. Run npm run event to receive a customer message.';
+    timeline.push(empty);
+  }
+  $('messages').replaceChildren(...timeline);
+  $('legacy-section').hidden = !ticket.legacy_history.length;
+  $('legacy-messages').replaceChildren(...ticket.legacy_history.map(event => timelineItem(event, { legacy: true })));
+  const revisions = ticket.revisions.map(revision => {
+    const details = document.createElement('details');
+    details.className = 'revision';
+    const summary = document.createElement('summary');
+    summary.textContent = `Draft v${revision.version}${revision.is_current ? ' · current' : ''}${revision.currently_approved ? ' · currently approved' : ''}${revision.approvals.length ? ' · approval recorded' : ''}`;
+    const metadata = document.createElement('p');
+    metadata.textContent = revision.source === 'saved'
+      ? `Saved by ${revision.created_by} · ${displayTime(revision.created_at)}`
+      : 'Recovered from existing data. Original author and save time were not recorded.';
+    const body = document.createElement('pre');
+    body.textContent = revision.body;
+    const approvals = document.createElement('p');
+    approvals.textContent = revision.approvals.length
+      ? revision.approvals.map(approval => `Approved by ${approval.actor_id || 'an unrecorded actor'} at ${displayTime(approval.created_at)}`).join('; ')
+      : 'No historical approval event recorded.';
+    const attempts = document.createElement('p');
+    attempts.textContent = revision.attempt_ids.length ? `Dispatch attempts: ${revision.attempt_ids.join(', ')}` : 'No dispatch attempt.';
+    details.append(summary, metadata, body, approvals, attempts);
+    return details;
+  });
+  if (!revisions.length) {
+    const empty = document.createElement('p');
+    empty.textContent = 'No saved draft revisions.';
+    revisions.push(empty);
+  }
+  $('revisions').replaceChildren(...revisions);
+}
 
 function render(ticket, { saved = false } = {}) {
   const buffer = editor.open(editorKey(), ticket, { saved });
@@ -60,10 +128,7 @@ function render(ticket, { saved = false } = {}) {
   $('state').textContent = `Owner: ${ticket.owner} | Delivery: ${ticket.send_state} | Draft v${ticket.version} | Approved v${ticket.approved_version ?? 'none'}`;
   $('draft').value = buffer.body;
   $('saved').textContent = ticket.draft || 'No saved draft.';
-  $('messages').textContent = ticket.messages.map(message => `Customer: ${message.body}`)
-    .concat(ticket.attempts.filter(attempt => attempt.state === 'SENT')
-      .map(attempt => `Confirmed reply (v${attempt.version}): ${attempt.body}`))
-    .join('\n\n') || 'No messages yet. Run npm run event.';
+  renderHistory(ticket);
   $('attempts').textContent = ticket.attempts.map(attempt =>
     `v${attempt.version} · ${attempt.state}\nReference: ${attempt.client_ref}\nCreated: ${displayTime(attempt.created_at)}\nUpdated: ${displayTime(attempt.updated_at)}\nLast checked: ${attempt.last_checked_at ? displayTime(attempt.last_checked_at) : 'Never'}\nText: ${attempt.body}`
   ).join('\n\n') || 'No dispatch attempts.';

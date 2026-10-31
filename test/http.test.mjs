@@ -263,4 +263,22 @@ test('HTTP contract, real provider ledger and process crash recovery', { timeout
     assert.deepEqual((await request('/api/tickets/101')).data, before);
     assert.equal((await post('approve', { version: 'bad' })).status, 400);
   });
+
+  await t.test('HTTP exposes immutable revisions and scoped timeline links across process restart', async () => {
+    const before = (await request('/api/tickets/101')).data;
+    assert.ok(before.revisions.length >= 1);
+    const firstAttempt = before.attempts[0];
+    const revision = before.revisions.find(r => r.id === firstAttempt.revision_id);
+    assert.equal(revision.body, firstAttempt.body);
+    assert.ok(revision.approvals.length >= 1);
+    assert.equal(before.timeline.filter(e => e.kind === 'dispatch_reserved').length, before.attempts.length);
+    assert.deepEqual(before.timeline.map(e => e.sequence), [...before.timeline.map(e => e.sequence)].sort((a, b) => a - b));
+    assert.equal((await request('/api/tickets/202')).status, 404);
+    await stop(app);
+    app = launch('src/server.mjs');
+    await ready(appUrl + '/', app);
+    const after = (await request('/api/tickets/101')).data;
+    assert.deepEqual(after.revisions, before.revisions);
+    assert.deepEqual(after.timeline, before.timeline);
+  });
 });

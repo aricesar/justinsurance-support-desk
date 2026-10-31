@@ -106,5 +106,5 @@ test('legacy schema migration preserves data, unknown historical times and runs 
   s.db.exec("CREATE TRIGGER reject_repeated_backfill BEFORE INSERT ON inbound_events BEGIN SELECT RAISE(ABORT, 'migration repeated'); END");
   s.close(); s = new DeskService({ databasePath: path, provider: {} });
   assert.equal(s.getTicket(alpha, 101).messages.length, 1);
-  assert.equal(s.db.prepare('PRAGMA user_version').get().user_version, 1);
+  assert.equal(s.db.prepare('PRAGMA user_version').get().user_version, 2);
 });

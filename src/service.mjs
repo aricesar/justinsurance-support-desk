@@ -14,7 +14,8 @@ export class DeskService {
           .run(new Date().toISOString(), attempt.id);
         this.db.prepare("UPDATE tickets SET send_state = 'UNKNOWN' WHERE id = ?").run(attempt.ticket_id);
         record(this.db, attempt.ticket_id, 'recovered_unknown', attempt.client_ref, {
-          version: attempt.version, clientRef: attempt.client_ref, outcome: 'UNKNOWN', reason: 'process_interrupted'
+          version: attempt.version, clientRef: attempt.client_ref, outcome: 'UNKNOWN', reason: 'process_interrupted',
+          revisionId: attempt.revision_id, attemptId: attempt.id
         });
       }
     });
@@ -29,6 +30,14 @@ export class DeskService {
     return row;
   }
   getTicket(actor, id) { return ticketView(this.db, this.row(actor, id)); }
+  currentRevision(ticket) {
+    const revision = this.db.prepare(`SELECT * FROM draft_revisions
+      WHERE ticket_id = ? AND tenant_id = ? AND version = ?`).get(ticket.id, ticket.tenant_id, ticket.version);
+    if (!revision || revision.body !== ticket.draft) {
+      throw new DeskError(409, 'Saved draft history is inconsistent. Ask an operator to review it.');
+    }
+    return revision;
+  }
   receiveWebhook(event) {
     validateEvent(event);
     return transaction(this.db, () => {
@@ -38,9 +47,11 @@ export class DeskService {
       const inserted = this.db.prepare('INSERT OR IGNORE INTO inbound_events VALUES (?, ?, ?)')
         .run(event.tenantId, event.eventId, ticket.id);
       if (!inserted.changes) return { accepted: true, duplicate: true };
-      this.db.prepare('INSERT INTO messages(ticket_id, event_id, body) VALUES (?, ?, ?)')
-        .run(ticket.id, event.eventId, event.body);
-      record(this.db, ticket.id, 'inbound', event.eventId, { actorId: 'webhook', reason: 'inbound_accepted' });
+      const message = this.db.prepare('INSERT INTO messages(ticket_id, event_id, body, created_at) VALUES (?, ?, ?, ?)')
+        .run(ticket.id, event.eventId, event.body, new Date().toISOString());
+      record(this.db, ticket.id, 'inbound', event.eventId, {
+        actorId: 'webhook', reason: 'inbound_accepted', messageId: Number(message.lastInsertRowid)
+      });
       return { accepted: true, duplicate: false };
     });
   }
@@ -50,11 +61,16 @@ export class DeskService {
       validateReply(body);
       validateVersion(version);
       if (version !== undefined && version !== ticket.version) throw new DeskError(409, 'Draft changed. Refresh and review before saving. Your local edits were kept.');
+      const revision = this.db.prepare(`INSERT INTO draft_revisions
+        (tenant_id, ticket_id, version, body, created_by, created_at, source) VALUES (?, ?, ?, ?, ?, ?, 'saved')`)
+        .run(ticket.tenant_id, id, ticket.version + 1, body, actor.id, new Date().toISOString());
       this.db.prepare(`UPDATE tickets SET draft = ?, version = version + 1, approved_version = NULL,
         send_state = CASE WHEN EXISTS(SELECT 1 FROM attempts WHERE ticket_id = ?
           AND state IN ('PENDING', 'UNKNOWN')) THEN send_state ELSE 'DRAFT' END WHERE id = ?`)
         .run(body, id, id);
-      record(this.db, id, 'draft_updated', `${actor.id}: approval cleared`, { actorId: actor.id });
+      record(this.db, id, 'draft_updated', `${actor.id}: approval cleared`, {
+        actorId: actor.id, revisionId: Number(revision.lastInsertRowid)
+      });
       return this.getTicket(actor, id);
     });
   }
@@ -64,8 +80,9 @@ export class DeskService {
       validateVersion(version);
       if (version !== undefined && version !== t.version) throw new DeskError(409, 'Draft changed. Review the saved text again.');
       if (!t.draft.trim()) throw new DeskError(400, 'No draft');
+      const revision = this.currentRevision(t);
       this.db.prepare('UPDATE tickets SET approved_version = version WHERE id = ?').run(id);
-      record(this.db, id, 'approved', `${actor.id}: version ${t.version}`, { actorId: actor.id });
+      record(this.db, id, 'approved', `${actor.id}: version ${t.version}`, { actorId: actor.id, revisionId: revision.id });
       return this.getTicket(actor, id);
     });
   }
@@ -84,6 +101,7 @@ export class DeskService {
       if (version !== undefined && version !== t.version) throw new DeskError(409, 'Draft changed. Review the saved text again.');
       if (automatic && t.owner === 'human') throw new DeskError(409, 'Human takeover blocks automation');
       if (!t.draft.trim() || t.approved_version !== t.version) throw new DeskError(409, 'Approve the current saved reply first');
+      const revision = this.currentRevision(t);
       if (this.db.prepare("SELECT 1 FROM attempts WHERE ticket_id = ? AND state IN ('PENDING', 'UNKNOWN')").get(id)) {
         throw new DeskError(409, 'Delivery unresolved. Check delivery; do not resend.');
       }
@@ -92,12 +110,13 @@ export class DeskService {
       }
       const clientRef = randomUUID();
       const now = new Date().toISOString();
-      this.db.prepare(`INSERT INTO attempts(ticket_id, version, client_ref, body, state, created_at, updated_at)
-        VALUES (?, ?, ?, ?, 'PENDING', ?, ?)`).run(id, t.version, clientRef, t.draft, now, now);
+      const inserted = this.db.prepare(`INSERT INTO attempts(ticket_id, version, client_ref, body, state, created_at, updated_at, revision_id)
+        VALUES (?, ?, ?, ?, 'PENDING', ?, ?, ?)`).run(id, revision.version, clientRef, revision.body, now, now, revision.id);
       this.db.prepare("UPDATE tickets SET send_state = 'PENDING' WHERE id = ?").run(id);
       record(this.db, id, 'dispatch_reserved', `${automatic ? 'automation' : actor.id}: v${t.version}: ${clientRef}`, {
         actorId: actor.id, version: t.version, clientRef, outcome: 'PENDING',
-        reason: automatic ? 'automation_dispatch' : 'human_dispatch'
+        reason: automatic ? 'automation_dispatch' : 'human_dispatch',
+        revisionId: revision.id, attemptId: Number(inserted.lastInsertRowid)
       });
       return this.db.prepare('SELECT * FROM attempts WHERE client_ref = ?').get(clientRef);
     });
@@ -133,7 +152,8 @@ export class DeskService {
         WHEN ? IN ('PENDING', 'UNKNOWN') OR version = ? THEN ? ELSE 'DRAFT' END WHERE id = ?`)
         .run(state, attempt.version, state, attempt.ticket_id);
       record(this.db, attempt.ticket_id, action, `${attempt.client_ref}: ${state}${providerId ? ': ' + providerId : ''}`, {
-        ...context, version: attempt.version, clientRef: attempt.client_ref, outcome: state, providerId
+        ...context, version: attempt.version, clientRef: attempt.client_ref, outcome: state, providerId,
+        revisionId: attempt.revision_id, attemptId: attempt.id
       });
     });
   }

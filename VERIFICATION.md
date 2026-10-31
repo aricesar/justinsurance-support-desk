@@ -1,8 +1,7 @@
 # Verification record
 
-Current follow-up result: **53 local tests passed**, including a clean source ZIP
-extraction and browser checks described below. The first section records the
-earlier implementation history; its 37-test result is historical.
+Current result: **70 local tests passed** for the timeline/history enhancement.
+Earlier 37- and 53-test results below describe previous implementation stages.
 
 ## Environment and commands
 
@@ -104,8 +103,8 @@ discard, conflict rejection without lost text and reload guidance, new save
 clearing approval, UNKNOWN to SENT reconciliation with one actual provider
 delivery, and visible creation/update/check times plus structured audit.
 
-The CI workflow is configured locally but has not run on GitHub. The tests were
-executed on Windows; a Linux CI result is not claimed. No production deployment,
+At that checkpoint, the CI workflow had not run on GitHub. Those local tests were
+executed on Windows. No production deployment,
 real GHL integration, load benchmark or automated full-browser suite was run.
 Unsaved buffers remain memory-only and the conversation still groups inbound and
 confirmed outbound messages rather than providing a chronological timeline.
@@ -129,3 +128,50 @@ with English text; explicit Unicode test values still cover multibyte encoding.
 The historical diagnostic is described in English without changing its recorded
 outcome. After these edits, all 53 local tests passed again with no failures or
 skips (6.397 seconds reported by the runner).
+
+## Published baseline CI
+
+Published commit `7f6ba4fc39f0ec06fde6badd507ed20af2289ca1` passed both Windows and
+Ubuntu GitHub Actions jobs, including npm test. Run: [41252426945](https://github.com/aricesar/justinsurance-support-desk/actions/runs/41252426945).
+This result applies to the 53-test baseline, not the subsequent local enhancement.
+
+## Timeline and immutable revision enhancement
+
+Started 2026-10-31 at 20:41:48 BRT. The bounded change adds immutable saved-draft
+snapshots, revision-linked approvals/attempts, a chronological timeline and a
+schema-version-2 migration. Existing routes and response fields remain, with
+revisions/timeline/legacy_history added to the authorized ticket response.
+
+Before implementation, `node --test test/history.test.mjs` failed all seven new
+feature cases (history-before.txt retained outside the source package). The
+expanded `npm.cmd test` then passed **70 tests, zero failures/skips**, exit 0;
+6.723 seconds reported by the runner. Additional coverage includes update/delete/
+replacement rejection, atomic snapshot rollback, cross-tenant FK/link rejection,
+in-flight edits, timestamp ties/clock reversal, old approval retention, version-1
+migration/reopen, unknown legacy ordering and conflicting-snapshot rollback.
+HTTP tests verify history references and persistence across actual process restart.
+
+Browser verification on separate synthetic data confirmed:
+
+- Revision 1's exact text and approval remain after revision 2 replaces it.
+- Only revision 2 is current/actively approved; its attempt references that snapshot.
+- The timeline shows inbound message, saves/approvals, dispatch, UNKNOWN, customer
+  follow-up and lookup confirmation in recorded sequence.
+- Confirmation does not add another reply body or send again: one ledger delivery.
+- Unsaved local edits survive reconciliation; Beta has no Alpha timeline/revisions.
+- HTML-like customer text remains literal, with zero injected image elements.
+
+Migration recovers only available snapshots. Missing earlier overwritten versions,
+original save times/authors and unrecorded ordering remain unknown. Conflicting
+legacy bodies abort migration instead of silently replacing history. Timeline
+sequence represents local processing order, not remote/provider occurrence time.
+History remains unpaginated, and no remote CI result is claimed for this local
+enhancement. No commit or push was performed for it during implementation.
+
+The final source candidate was extracted into a clean directory and tested again:
+**70 passed, 0 failed, 0 skipped**, exit 0; 6.842 seconds reported by the runner.
+The source package contains 29 English-language source/documentation/workflow
+files and excludes databases, Git metadata, dependencies and preparation files.
+At 20:54:20 BRT, this stage had taken 12 minutes 32 seconds; reserve approximately
+13 minutes including final packaging/closure. Add this stage to all earlier active
+work; the previously unmeasured duration is still not represented as zero.

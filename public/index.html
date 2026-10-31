@@ -2,14 +2,18 @@
 <title>Support desk work sample</title>
 <style>
 body{font:16px system-ui;margin:32px auto;max-width:1000px;padding:0 20px;color:#182231;background:#f6f7f9}h1{font-size:25px}main{display:grid;grid-template-columns:260px 1fr;gap:30px}button,select,textarea{font:inherit;padding:9px;margin:4px 0}button{cursor:pointer}textarea{width:95%;min-height:100px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:white;padding:14px;border:1px solid #d5dae2;font-size:13px}#notice{min-height:25px;font-weight:600}li{margin:10px 0}.buttons{display:flex;flex-wrap:wrap;gap:6px}small{color:#586577}@media(max-width:650px){main{display:block}}
+.timeline{list-style:none;padding:0}.timeline li{background:#fff;border:1px solid #d5dae2;border-left:4px solid #52749b;padding:12px}.timeline .message-text{white-space:pre-wrap;overflow-wrap:anywhere;margin:8px 0 0}.timeline .event-meta{font-size:12px;color:#586577;margin:5px 0}details{margin:12px 0}summary{cursor:pointer;font-weight:600}.revision{border:1px solid #d5dae2;background:white;padding:10px}
 </style>
 <h1>Support desk work sample</h1><p>Fictional customers · local exercise · no real messages are sent.</p>
 <label>Signed in as <select id="identity"><option value="alpha">Alpha support agent</option><option value="beta">Beta support agent</option></select></label>
 <p id="notice" role="status"></p><main><section><h2>Inbox</h2><button id="refresh">Refresh</button><ul id="tickets"></ul></section>
 <section><h2 id="title">Select a ticket</h2><p id="state"></p><div id="work" hidden>
-<h3>Conversation</h3><pre id="messages"></pre><label for="draft">Reply draft</label><textarea id="draft"></textarea>
+<h3>Conversation timeline</h3><small>Events appear in recorded order. Times show when this desk recorded each event.</small>
+<section id="legacy-section" hidden><h4>Earlier history: original order not recorded</h4><ul id="legacy-messages" class="timeline"></ul></section>
+<ol id="messages" class="timeline"></ol><label for="draft">Reply draft</label><textarea id="draft"></textarea>
 <small>The suggested reply is a fixed fixture. No AI API or account is needed.</small>
 <h3>Saved text to approve</h3><pre id="saved"></pre><p id="guidance" role="status"></p><button id="discard" disabled>Discard local edits</button>
 <div class="buttons"><button data-action="suggest">Use suggested reply</button><button data-action="draft">Save draft</button><button data-action="approve">Approve saved draft</button><button data-action="send">Send manually</button><button data-action="handoff">Take over</button><button data-action="automation">Simulate automation</button><button data-action="reconcile">Check delivery</button></div>
+<details id="revision-history"><summary>Saved draft history</summary><small>Saved versions are read-only. Earlier overwritten drafts may be unavailable in migrated data.</small><div id="revisions"></div></details>
 <h3>Delivery attempts</h3><pre id="attempts"></pre><h3>Audit trail</h3><pre id="audit"></pre></div></section></main>
 <script type="module" src="/app.mjs"></script></html>
