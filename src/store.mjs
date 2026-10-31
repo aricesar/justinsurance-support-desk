@@ -32,11 +32,31 @@ export function openStore(path) {
       state TEXT NOT NULL, provider_id TEXT,
       UNIQUE(ticket_id, version)
     );
+    CREATE TABLE IF NOT EXISTS inbound_events (
+      tenant_id TEXT NOT NULL, event_id TEXT NOT NULL, ticket_id INTEGER NOT NULL,
+      PRIMARY KEY(tenant_id, event_id)
+    );
     INSERT OR IGNORE INTO tickets(id, tenant_id, contact, subject) VALUES
       (101, 'alpha', 'Jordan Demo', 'Cannot resume my practice exam'),
       (202, 'beta', 'Casey Example', 'Course completion is missing');
+    INSERT OR IGNORE INTO inbound_events(tenant_id, event_id, ticket_id)
+      SELECT t.tenant_id, m.event_id, m.ticket_id FROM messages m
+      JOIN tickets t ON t.id = m.ticket_id ORDER BY m.id;
   `);
   return db;
+}
+
+// Callbacks must be synchronous: never hold the write lock during network I/O.
+export function transaction(db, work) {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const result = work();
+    db.exec('COMMIT');
+    return result;
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
 }
 
 export function record(db, id, action, detail) {

@@ -55,3 +55,23 @@ The live session includes showing a failure before a fix, tracing code and datab
 ## What is not required
 
 Do not build a full CRM, actual GHL OAuth, production authentication, a real LLM integration, SCORM, an avatar tutor, billing, analytics, or a cloud deployment. Explain any production limitations rather than trying to solve the entire roadmap in three hours.
+
+## Candidate implementation notes
+
+The commands above remain unchanged. On Windows PowerShell, `npm.cmd` can be used
+instead of `npm`. No installation step is needed once Node.js 24+ is available.
+Run commands from this project's directory. Use separate terminals for provider
+and application; stop them with Ctrl+C. Keep both SQLite databases for restart
+recovery checks. Never expose these fixture servers publicly.
+
+`npm test` includes service regressions and HTTP tests. HTTP tests launch their own
+application and unchanged mock provider on temporary loopback ports, use separate
+temporary databases, and terminate only their own child processes. They need local
+socket/process permissions and take roughly 10 seconds on this environment.
+
+The UI displays the saved text separately from unsaved edits. Save, review,
+explicitly approve, then send. Approval and send optionally accept `{ "version": N }`
+to reject a stale UI view with 409; the original `{}` requests remain supported.
+An unresolved attempt blocks any new dispatch on that ticket, including a newly
+edited/approved version. `Check delivery` never sends. See `HANDOFF.md` for state
+semantics, operator recovery, verification and production limitations.

@@ -13,7 +13,11 @@ const read = async req => {
   for await (const chunk of req) {
     body += chunk; if (body.length > 100000) throw new DeskError(413, 'Body too large');
   }
-  try { return body ? JSON.parse(body) : {}; } catch { throw new DeskError(400, 'Invalid JSON'); }
+  try {
+    const value = body ? JSON.parse(body) : {};
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error();
+    return value;
+  } catch { throw new DeskError(400, 'Expected a JSON object'); }
 };
 const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
 const server = createServer(async (req, res) => {
@@ -27,7 +31,8 @@ const server = createServer(async (req, res) => {
       if (req.headers['x-demo-webhook-secret'] !== 'fictional-webhook-secret') throw new DeskError(401, 'Invalid webhook secret');
       return json(res, 200, service.receiveWebhook(await read(req)));
     }
-    const actor = actors[(req.headers.authorization || '').replace(/^Bearer /, '')];
+    const bearer = (req.headers.authorization || '').match(/^Bearer (.+)$/)?.[1];
+    const actor = bearer && Object.hasOwn(actors, bearer) ? actors[bearer] : null;
     if (!actor) throw new DeskError(401, 'Sign in using a demo identity');
     if (req.method === 'GET' && url.pathname === '/api/tickets') return json(res, 200, service.listTickets(actor));
     const match = url.pathname.match(/^\/api\/tickets\/(\d+)(?:\/(draft|approve|send|automation|handoff|reconcile))?$/);
@@ -39,10 +44,10 @@ const server = createServer(async (req, res) => {
     let result;
     switch (action) {
       case 'draft': result = service.updateDraft(actor, id, b.body); break;
-      case 'approve': result = service.approveDraft(actor, id); break;
+      case 'approve': result = service.approveDraft(actor, id, { version: b.version }); break;
       case 'handoff': result = service.handoff(actor, id); break;
-      case 'send': result = await service.sendReply(actor, id); break;
-      case 'automation': result = await service.sendReply(actor, id, { automatic: true }); break;
+      case 'send': result = await service.sendReply(actor, id, { version: b.version }); break;
+      case 'automation': result = await service.sendReply(actor, id, { automatic: true, version: b.version }); break;
       case 'reconcile': result = await service.reconcile(actor, id); break;
       default: throw new DeskError(404, 'Not found');
     }
