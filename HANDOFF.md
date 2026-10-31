@@ -1,45 +1,42 @@
 # Support desk handoff
 
-## Changes and ownership
+## Changes
 
-All ticket operations authorize using the server-resolved organization. Webhook authentication remains at HTTP ingress. A durable `(tenant_id, event_id)` receipt, customer message and audit entry commit together. Existing inbound history is backfilled into the receipt registry; historical duplicates are not deleted.
+All ticket operations enforce the server-resolved organization. Authenticated webhooks use durable `(tenant_id, event_id)` deduplication; receipt, message and audit commit atomically. Editing clears approval; dispatch requires the current approved version and reserves an immutable, unique `(ticket_id, version)` attempt before external I/O. No transaction spans the network. Takeover blocks new automation while preserving approved human sends. Late responses cannot downgrade confirmed delivery.
 
-Editing creates a new draft version and clears approval. Send requires the current approved version. The UI separately shows the exact saved text; optional `version` on approval/send rejects stale views while preserving existing `{}` requests. Before external I/O, a short transaction reserves a unique `(ticket_id, version)` attempt with immutable body and correlation reference. No transaction spans network I/O. The provider does not deduplicate requests.
+The follow-up fixes fragmented UTF-8 input and preserves unsaved editor text during application refresh, takeover, reconciliation and ticket/identity switching. Optional observed versions on save/approve/send detect stale views; legacy requests remain supported. Byte limits, safe errors with request references, structured audit, attempt timestamps, query indexes and a one-time schema migration were added. Unknown historical timestamps remain null. The mock, original routes and fixture identities remain unchanged.
 
-Takeover blocks subsequent automation dispatches in server code; approved human replies remain possible. Already-dispatched messages are not recalled. Confirmed attempts cannot be downgraded by late responses. Editing during dispatch preserves the original attempt and cannot mark the replacement draft as delivered. The unchanged mock and public routes/fixture identities are preserved.
+## Run and verification
 
-## Verification
-
-Node 24.22.2, npm 11.19.1, native SQLite 3.53.4; no dependencies added. From a clean source directory:
+Use Node 24+. No dependencies need installation. From the source directory, in separate terminals:
 
 ```sh
 npm run provider
-# separate terminal:
 npm start
-# separate terminal:
 npm test
 ```
 
-Before application changes, `node --test test/regression.test.mjs` failed both new tests: cross-organization read and edited draft sent without reapproval. After correction both passed. The original two smoke tests also remain green. Full-suite results and exact scope are in `VERIFICATION.md`.
+Open http://127.0.0.1:4300. On Windows, `npm.cmd` is equivalent. The latest local suite passed **53 tests, zero failures/skips**. It covers authorization, replay/rollback, approval, overlap, uncertain outcomes, lookup failures, takeover, crash/restart, UTF-8, byte limits, optimistic saves and migration. HTTP tests inspect the real mock ledger and kill/restart the app without resetting state. Two regression tests failed before the original fixes and now pass.
 
-Tests cover authorization, ingress authentication, scoped replay, rollback, approval, overlapping sends, persisted reservation, uncertain outcomes, failed lookup/not_found, explicit rejection, takeover, edits/late responses and recovery. HTTP tests inspect the actual mock ledger and kill/restart the application after acceptance without deleting state. Browser checks additionally verified unsaved-edit blocking, approval clearing, UNKNOWN to SENT reconciliation, organization switching and literal HTML-like customer text.
+Browser checks verified preserved edits, approval clearing, organization switching, conflict handling and UNKNOWN-to-SENT reconciliation with one provider delivery. Details are in `VERIFICATION.md`. CI is configured for Node 24 on Windows/Ubuntu; no remote CI result is claimed.
 
 ## Operator instructions
 
-- `DRAFT`: review saved text, approve its version, then send. A suggestion is never approval.
-- `PENDING` / `UNKNOWN`: delivery may have occurred. Do not resend or recreate the reply. Use **Check delivery**, which queries the stored reference. Restart converts interrupted PENDING attempts to UNKNOWN and never dispatches them again.
-- `not_found`, lookup errors and malformed evidence remain UNKNOWN. Repeat lookup later or escalate with ticket, version and reference. There is deliberately no force-retry/unlock action.
-- `SENT`: provider evidence confirms that attempt. `FAILED`: this mock explicitly rejected before acceptance. That version is not retried; review/save and approve a new version only for an intentional new dispatch. The five-second client deadline is uncertain, never a safe failure.
-- Attempt history is authoritative for older versions. A newer draft can remain DRAFT while an older attempt is SENT. **Take over** disables subsequent automation, not human approval/send.
+- Save, review the exact saved text, explicitly approve, then send. Suggestions never authorize delivery.
+- PENDING/UNKNOWN may already be delivered. Never resend/recreate the reply. **Check delivery** queries the same stored reference. Restart changes interrupted PENDING attempts to UNKNOWN without replay.
+- not_found, lookup failure and malformed evidence remain inconclusive. Consult again later or escalate with ticket/version/reference. No force-retry exists.
+- SENT confirms that attempt. FAILED means this mock explicitly rejected before acceptance. That version is never retried; review/save/approve a new version only for an intentional new dispatch. A client timeout is always uncertain.
+- A newer draft may be DRAFT while an older attempt is SENT. Consult attempt history and timestamps.
+- Conflicting save: copy local edits, **Discard local edits** to load the latest saved version, merge and save. In-memory edits do not survive browser reload/closure.
 
 ## Remaining risks and production plan
 
-This is a single-process local fixture, not production-ready. Browser checks were manual, not an automated cross-browser/accessibility suite. Demo identities/secrets, raw audit display, no distributed dispatch fencing, no retry scheduler, backup policy or historical-duplicate repair remain intentional limitations. Persistent inconclusive delivery requires human escalation.
+Single-process fixture; demo authentication, raw audit presentation, unpaginated history, grouped conversation ordering and manual browser checks remain limitations. No distributed fencing, retry scheduler, production monitoring or backup policy. Persistent uncertainty requires human escalation.
 
-Before a real GHL pilot, verify the actual API's authentication/scopes, webhook signatures/replays, organization/contact mapping, acceptance/error meanings, correlation/lookup and idempotency guarantees in a sandbox. Add real authorization, redacted structured logs, metrics/alerts for UNKNOWN age, rejected access and duplicate events, durable multi-worker coordination, retention/backups and failure drills. Start with a restricted pilot; rollback disables automation and preserves attempts for human reconciliation rather than replaying them.
+Before a real GHL pilot, validate actual authentication/scopes, webhook signatures, tenant/contact mapping, rate limits, acceptance/error semantics and correlation/idempotency guarantees. Add real authorization, redacted logs/alerts, retention, backup/restore drills and coordinated workers. Start with a restricted pilot; rollback disables automation while retaining attempts for reconciliation. This exercise is not production-ready.
 
-## AI use and time
+## AI and time
 
-OpenAI Codex assisted analysis, code, tests and documentation. Accepted suggestion: durable reservation before dispatch instead of retrying on timeout. Verified with overlapping-send tests and the real-provider crash/ledger test. No separate rejected suggestion is claimed. A Windows test-cleanup ordering issue was corrected and the suite rerun.
+OpenAI Codex assisted code, tests and documentation. Accepted durable reservation instead of timeout retries, verified by concurrency/crash/ledger tests. The follow-up corrected two review findings and added regressions. No separate rejected suggestion is claimed.
 
-Recorded implementation/testing/handoff/packaging: approximately 11 minutes; previous measured preparation: approximately 1 minute. Earlier analysis/installation was not measured and must be added to the candidate's total. An exact overall duration is not established; see `VERIFICATION.md`. Nothing was sent or published.
+Initial implementation was approximately 11 minutes plus one measured preparation minute. Review, Git activity and this follow-up add time; earlier analysis/installation was unmeasured. `VERIFICATION.md` records checkpoints; no exact total is claimed. These follow-up changes remain local, with no company submission.

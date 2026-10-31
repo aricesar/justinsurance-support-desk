@@ -9,38 +9,7 @@ body{font:16px system-ui;margin:32px auto;max-width:1000px;padding:0 20px;color:
 <section><h2 id="title">Select a ticket</h2><p id="state"></p><div id="work" hidden>
 <h3>Conversation</h3><pre id="messages"></pre><label for="draft">Reply draft</label><textarea id="draft"></textarea>
 <small>The suggested reply is a fixed fixture. No AI API or account is needed.</small>
-<h3>Saved text to approve</h3><pre id="saved"></pre><p id="guidance" role="status"></p>
+<h3>Saved text to approve</h3><pre id="saved"></pre><p id="guidance" role="status"></p><button id="discard" disabled>Discard local edits</button>
 <div class="buttons"><button data-action="suggest">Use suggested reply</button><button data-action="draft">Save draft</button><button data-action="approve">Approve saved draft</button><button data-action="send">Send manually</button><button data-action="handoff">Take over</button><button data-action="automation">Simulate automation</button><button data-action="reconcile">Check delivery</button></div>
-<h3>Delivery and audit trail</h3><pre id="audit"></pre></div></section></main>
-<script type="module">
-let selected, current, busy = false;
-const $=id=>document.getElementById(id);
-async function api(path,method='GET',body){const r=await fetch(path,{method,headers:{'Content-Type':'application/json',Authorization:'Bearer demo-'+$('identity').value+'-token'},body:body===undefined?undefined:JSON.stringify(body)});const data=await r.json();if(!r.ok)throw Error(data.error);return data;}
-function controls(){
-  const unresolved=current?.attempts.some(a=>['PENDING','UNKNOWN'].includes(a.state));
-  const dirty=current && $('draft').value!==current.draft;
-  const attempted=current?.attempts.some(a=>a.version===current.version);
-  for(const b of document.querySelectorAll('button'))b.disabled=busy;
-  $('identity').disabled=busy;$('draft').disabled=busy;
-  for(const b of document.querySelectorAll('[data-action]')){
-    const a=b.dataset.action;
-    b.disabled=busy||!current;
-    if(a==='approve')b.disabled ||= dirty||!current?.draft||current.approved_version===current.version;
-    if(a==='send'||a==='automation')b.disabled ||= dirty||unresolved||attempted||current?.approved_version!==current?.version||(a==='automation'&&current?.owner==='human');
-    if(a==='reconcile')b.disabled ||= !unresolved;
-  }
-  if(!current)return;
-  $('guidance').textContent=unresolved?'Delivery is pending or UNKNOWN. Do not resend or recreate the reply. Use Check delivery. A not_found result is inconclusive; escalate if it stays unresolved.'
-    :dirty?'Unsaved edits: save, review the saved text below, then explicitly approve.'
-    :attempted?'This saved version already has an attempt. See its status below. SENT confirms delivery; FAILED means this mock explicitly rejected it. No automatic retry is performed.'
-    :current.approved_version===current.version?'This exact saved version is approved and ready to send.'
-    :'Review the saved text and approve it before sending. Editing clears approval.';
-}
-function render(t){current=t;$('work').hidden=false;$('title').textContent=t.subject+' · '+t.contact;$('state').textContent='Owner: '+t.owner+' | Delivery: '+t.send_state+' | Draft v'+t.version+' | Approved v'+(t.approved_version??'none');$('draft').value=t.draft;$('saved').textContent=t.draft||'No saved draft.';$('messages').textContent=t.messages.map(m=>'Customer: '+m.body).concat(t.attempts.filter(a=>a.state==='SENT').map(a=>'Confirmed reply (v'+a.version+'): '+a.body)).join('\n\n')||'No messages yet. Run npm run event.';$('audit').textContent=JSON.stringify({attempts:t.attempts,audit:t.audit},null,2);controls();}
-async function refresh(){const rows=await api('/api/tickets');$('tickets').replaceChildren();for(const t of rows){const li=document.createElement('li'),b=document.createElement('button');b.textContent=t.id+': '+t.contact;b.onclick=()=>act(async()=>{selected=t.id;render(await api('/api/tickets/'+selected));});li.append(b);$('tickets').append(li);}if(selected)render(await api('/api/tickets/'+selected));}
-async function act(fn){if(busy)return;busy=true;controls();try{$('notice').textContent='Working…';await fn();$('notice').textContent='Action completed. Review the state and next safe action.';}catch(e){$('notice').textContent=e.message;}finally{busy=false;controls();}}
-$('draft').oninput=controls;
-$('refresh').onclick=()=>act(refresh);$('identity').onchange=()=>{selected=undefined;current=undefined;$('work').hidden=true;$('title').textContent='Select a ticket';$('state').textContent='';act(refresh);};
-for(const b of document.querySelectorAll('[data-action]'))b.onclick=()=>act(async()=>{const a=b.dataset.action;if(a==='suggest'){$('draft').value='Thanks for reaching out. A support agent will help you recover your progress.';return;}const body=a==='draft'?{body:$('draft').value}:{version:current.version};render(await api('/api/tickets/'+selected+'/'+a,'POST',body));});
-act(refresh);
-</script></html>
+<h3>Delivery attempts</h3><pre id="attempts"></pre><h3>Audit trail</h3><pre id="audit"></pre></div></section></main>
+<script type="module" src="/app.mjs"></script></html>

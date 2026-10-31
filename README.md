@@ -70,8 +70,29 @@ temporary databases, and terminate only their own child processes. They need loc
 socket/process permissions and take roughly 10 seconds on this environment.
 
 The UI displays the saved text separately from unsaved edits. Save, review,
-explicitly approve, then send. Approval and send optionally accept `{ "version": N }`
+explicitly approve, then send. Draft save, approval and send optionally accept `{ "version": N }`
 to reject a stale UI view with 409; the original `{}` requests remain supported.
 An unresolved attempt blocks any new dispatch on that ticket, including a newly
 edited/approved version. `Check delivery` never sends. See `HANDOFF.md` for state
 semantics, operator recovery, verification and production limitations.
+
+### Reliability follow-up
+
+- JSON bodies are limited to 100000 **bytes**, decoded without corrupting split
+  UTF-8 characters, and must be objects. Invalid encoding is rejected.
+- Unsaved edits are kept in memory per identity/ticket across the application's
+  Refresh, takeover, reconciliation and ticket switching. They do not survive a
+  browser reload/closure. **Discard local edits** explicitly reloads the saved text.
+- The UI sends the version originally edited when saving. A conflicting update
+  returns 409 and keeps the local text. Copy it, discard/reload the latest saved
+  draft, then merge and save. Legacy requests without version remain supported.
+- Attempts include `created_at`, `updated_at` and `last_checked_at`. Historical
+  times that were never recorded remain null rather than being invented.
+- Audit entries include tenant, actor, draft version, reference, outcome and
+  reason. Technical errors return a request reference and a safe message; server
+  error logs contain no request bodies, credentials or raw database errors.
+- Schema version 1 adds audit/time columns and query indexes, and backfills the
+  event receipt registry once. Existing data and unresolved attempts are retained.
+- `.github/workflows/test.yml` configures Node 24 tests on Ubuntu and Windows,
+  read-only repository permissions and no dependency-install step. It runs after
+  the workflow is pushed; configuring it locally does not prove a remote run.

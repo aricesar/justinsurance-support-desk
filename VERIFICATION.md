@@ -1,5 +1,9 @@
 # Verification record
 
+Current follow-up result: **53 local tests passed**, including a clean source ZIP
+extraction and browser checks described below. The first section records the
+earlier implementation history; its 37-test result is historical.
+
 ## Environment and commands
 
 Windows x64; Node.js v24.22.2; npm 11.19.1; native SQLite 3.53.4.
@@ -69,4 +73,59 @@ worker behavior, cross-browser matrix or load test was performed.
   The candidate must add the earlier analysis/setup estimate before submission;
   this record does not assert a verified overall duration or compliance total.
 
-No submission or external publication was performed.
+At the initial implementation checkpoint, nothing had been submitted or published.
+A private GitHub repository was created later at the candidate's request. Nothing
+has been submitted to the company.
+
+## Reliability follow-up — 2026-10-31
+
+The follow-up started at 20:12:18 BRT. It fixes the review's UTF-8 reader defect
+and unsaved-editor loss; adds optimistic draft saves, structured audit fields,
+attempt times, one-time migration, query indexes and a Node 24 CI workflow.
+
+`npm.cmd test`: **53 passed, 0 failed, 0 skipped**, exit 0; 6.345 seconds reported
+by the runner. All original scenarios remain included. New checks cover every
+UTF-8 byte split, actual chunked HTTP, malformed encoding, byte limits and 413
+responses without a broken socket, optimistic save conflicts, scoped editor
+buffers, structured audit without body/error leakage, legacy schema migration,
+indexed query plans, fixed frontend asset routes and sanitized internal errors.
+
+The updated source candidate was extracted into a clean directory and tested
+again: **53 passed, 0 failed, 0 skipped**, exit 0; 6.389 seconds. No local Node
+installation, database, Git metadata or preparation files are included in the ZIP.
+
+The same separate HTTP diagnostic that previously corrupted a four-byte emoji
+now preserved its original input exactly (`preservedExactly: true`).
+
+Browser verification on a separate synthetic database confirmed: Unicode save,
+explicit approval, disabled send with unsaved edits, draft preservation after
+Refresh/takeover/identity switching/reconciliation, Beta-only inbox, explicit
+discard, conflict rejection without lost text and reload guidance, new save
+clearing approval, UNKNOWN to SENT reconciliation with one actual provider
+delivery, and visible creation/update/check times plus structured audit.
+
+The CI workflow is configured locally but has not run on GitHub. The tests were
+executed on Windows; a Linux CI result is not claimed. No production deployment,
+real GHL integration, load benchmark or automated full-browser suite was run.
+Unsaved buffers remain memory-only and the conversation still groups inbound and
+confirmed outbound messages rather than providing a chronological timeline.
+
+At this verification checkpoint, the follow-up changes had not been committed
+or pushed. Subsequent version-control activity does not change these test results.
+Previous timing is historical: the additional review, Git activity and this
+follow-up must all be included in the candidate's total active assessment time.
+The earlier unmeasured duration remains unresolved.
+
+At 20:22:46 BRT this follow-up had taken 10 minutes 28 seconds, including browser
+checks and clean-package testing. Reserve approximately 11 minutes including
+final packaging/closure, and add any subsequent work. Preview processes and the
+temporary browser tab were closed after verification.
+
+## English-language audit
+
+Source identifiers, comments, UI messages, documentation and commit messages
+were reviewed for English wording. Portuguese fixture phrases were replaced
+with English text; explicit Unicode test values still cover multibyte encoding.
+The historical diagnostic is described in English without changing its recorded
+outcome. After these edits, all 53 local tests passed again with no failures or
+skips (6.397 seconds reported by the runner).
