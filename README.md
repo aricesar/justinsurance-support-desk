@@ -151,6 +151,6 @@ send messages or change persistence. Missing times remain unknown. Schema versio
 Delivery-policy commit `3ea7e33` passed [Windows/Ubuntu CI](https://github.com/aricesar/justinsurance-support-desk/actions/runs/41255577764),
 with all 89 tests. `main` includes the complete implementation. `HANDOFF.pdf` is the
 two-page rendering of `HANDOFF.md`; `DEMO.md` gives a short verification guide.
-The final source ZIP is attached to the recruiter conversation, so reviewing it
-does not require access to the private GitHub repository. GitHub links remain
+The final source ZIP can be reviewed independently of the private GitHub
+repository. The submission provides the archive or its download link. GitHub links remain
 private; repository access is not implied by possession of a link.

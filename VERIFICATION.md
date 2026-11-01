@@ -254,6 +254,18 @@ HANDOFF.md is rendered as HANDOFF.pdf with an explicit page break and checked as
 two pages at readable font size. DEMO.md covers isolation, duplicate prevention,
 uncertainty, actual process restart and takeover. The final ZIP includes code,
 tests, documentation, the PDF and workflow; excludes databases, Git metadata and
-dependencies. It is delivered as an attachment to the existing recruiter
-conversation so access does not depend on GitHub permissions. The repository
-remains private; no collaborator access or public visibility is implied.
+dependencies. The repository remains private; no collaborator access or public
+visibility is implied. The submission must provide an accessible archive rather
+than relying only on private GitHub links.
+
+Final artifact commit b45671e passed both Windows and Ubuntu jobs in
+[main run 41255796614](https://github.com/aricesar/justinsurance-support-desk/actions/runs/41255796614)
+and [assessment-history run 41255798903](https://github.com/aricesar/justinsurance-support-desk/actions/runs/41255798903).
+Its exact source ZIP was extracted and tested: 89 passed, zero failures/skips.
+The archived PDF was reopened with strict parsing and confirmed as two pages.
+
+The first submission attempt through the existing Get on Board reply address
+was rejected by Gmail's executable/archive policy. A Sent label alone did not
+establish delivery; the immediate bounce was checked. Therefore that attempt
+was not counted as a completed company submission. A source download link is
+needed instead; the final submission receipt is retained outside the source ZIP.
