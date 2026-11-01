@@ -122,8 +122,10 @@ history**. Conflicting bodies for the same old ticket/version abort migration
 without overwriting those records and require investigation. New snapshots reject
 updates, deletion and replacement; attempt links must match ticket/version/text.
 
-The published pre-enhancement commit `7f6ba4f` passed GitHub Actions on Windows and
-Ubuntu. This local history enhancement requires its own CI run after publication.
+History commit `d7beed3` passed [Windows/Ubuntu CI](https://github.com/aricesar/justinsurance-support-desk/actions/runs/41254351328).
+The complete implementation is now on `main`; the original remains available as
+`starter-original`. Use the [complete comparison](https://github.com/aricesar/justinsurance-support-desk/compare/starter-original...assessment-history)
+to review all changes. The older `solution-corrected` tag is an intermediate version.
 
 ### Delivery policy and operator summary
 
@@ -143,3 +145,12 @@ reply from a newer draft, and warns against resending uncertain attempts.
 Elapsed ages refresh locally every 15 seconds; this does not poll the provider,
 send messages or change persistence. Missing times remain unknown. Schema version
 2, existing routes, fixture identities and provider semantics are unchanged.
+
+### Final delivery
+
+Delivery-policy commit `3ea7e33` passed [Windows/Ubuntu CI](https://github.com/aricesar/justinsurance-support-desk/actions/runs/41255577764),
+with all 89 tests. `main` includes the complete implementation. `HANDOFF.pdf` is the
+two-page rendering of `HANDOFF.md`; `DEMO.md` gives a short verification guide.
+The final source ZIP is attached to the recruiter conversation, so reviewing it
+does not require access to the private GitHub repository. GitHub links remain
+private; repository access is not implied by possession of a link.

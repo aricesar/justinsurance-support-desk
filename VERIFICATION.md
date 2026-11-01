@@ -222,3 +222,38 @@ At 21:12:18 BRT this stage had taken 12 minutes 44 seconds. Reserve approximatel
 14 minutes including final packaging/closure. Add this and intervening reviews/
 Git activity to earlier active work; the overall remaining budget is still not
 verifiable because earlier analysis/setup time was not measured.
+
+## Final publication and consolidated time
+
+The earlier local-only statements above are historical checkpoints, superseded
+by this publication record. Delivery-policy commit `3ea7e33c532bd4c891c589f9993169c2d34ca8d7`
+was pushed to assessment-history. Its [CI run 41255577764](https://github.com/aricesar/justinsurance-support-desk/actions/runs/41255577764)
+completed successfully on Windows and Ubuntu. Main now contains that full source
+tree via merge `5c4f3daf7d627915060420d7e38af9e2609193ae`, preserving both initial
+histories without force-push. Its [CI run 41255622252](https://github.com/aricesar/justinsurance-support-desk/actions/runs/41255622252)
+also passed both platforms, including npm test. Timeline commit d7beed3 passed
+[run 41254351328](https://github.com/aricesar/justinsurance-support-desk/actions/runs/41254351328)
+on both platforms. The current full suite contains 89 passing tests.
+
+The complete review link is [starter-original...assessment-history](https://github.com/aricesar/justinsurance-support-desk/compare/starter-original...assessment-history).
+The original starter tag is preserved; solution-corrected is an older intermediate
+version. The final documentation/PDF commit follows the verified code merge;
+its own CI result must be inspected rather than inferred from that earlier run.
+
+The candidate supplied the missing overall start: **19:25 BRT, October 31, 2026**.
+Use **approximately two hours total**, conservatively counting wall-clock elapsed
+time through delivery around 21:25 BRT, including setup, analysis, implementation,
+tests, reviews, Git/CI, documentation, packaging and actual submission. This
+includes gaps instead of inventing a retroactive active timer or excluding setup.
+It supersedes the earlier unresolved-total notes. On that reported start and
+conservative accounting, the total is below the 180-minute cap. The estimate is
+not an independently measured minute-by-minute activity log. Stop by 22:25 BRT
+if delivery encounters further problems; do not silently expand the allowance.
+
+HANDOFF.md is rendered as HANDOFF.pdf with an explicit page break and checked as
+two pages at readable font size. DEMO.md covers isolation, duplicate prevention,
+uncertainty, actual process restart and takeover. The final ZIP includes code,
+tests, documentation, the PDF and workflow; excludes databases, Git metadata and
+dependencies. It is delivered as an attachment to the existing recruiter
+conversation so access does not depend on GitHub permissions. The repository
+remains private; no collaborator access or public visibility is implied.
