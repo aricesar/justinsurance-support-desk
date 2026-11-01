@@ -269,3 +269,23 @@ was rejected by Gmail's executable/archive policy. A Sent label alone did not
 establish delivery; the immediate bounce was checked. Therefore that attempt
 was not counted as a completed company submission. A source download link is
 needed instead; the final submission receipt is retained outside the source ZIP.
+
+## Architecture documentation refresh
+
+ARCHITECTURE.md explains the implemented workflow, trust boundaries, evidence-based
+state transitions, short transactions, concurrency/restart handling, read models
+and the source/test map. Its descriptions were checked against the implementation;
+this is a documentation-only change. README.md and the two-page handoff now link
+to it. HANDOFF.pdf was regenerated and both rendered pages visually checked.
+
+The earlier two-hour estimate was a checkpoint, not a final timer. Continued
+discussion, delivery attempts and this documentation refresh are included in the
+updated conservative estimate: approximately 2 hours 20 minutes, allowing closure
+through 21:45 BRT from the reported 19:25 start on October 31. This remains below
+180 minutes. Actual company submission remains unconfirmed after the Gmail
+archive rejection and unavailable Drive upload. Do not treat a local package,
+successful push or Sent label as proof that the recruiter received the project.
+
+Application and test code are unchanged from the verified 89-test implementation;
+the suite was not rerun locally for prose/PDF changes. The refreshed source ZIP
+contains ARCHITECTURE.md and the updated handoff, with no database or Git metadata.

@@ -20,7 +20,7 @@ npm test
 
 Open http://127.0.0.1:4300. On Windows, `npm.cmd` is equivalent. The latest local suite passed **89 tests, zero failures/skips**, including transition/evidence rules, operator guidance, immutable revisions, isolation, concurrent sends and migration rollback. HTTP tests inspect the real mock ledger and kill/restart the app without resetting state. Two regressions failed before original fixes; seven feature tests failed before history implementation.
 
-Browser checks verified history, safe text, isolation and the new summary: uncertainty, reconciliation preserving unsaved edits, previous-delivery/new-draft distinction and explicit rejection. One provider delivery was recorded. All corrections were merged into main as `5c4f3da`, which passed [Windows/Ubuntu CI](https://github.com/aricesar/justinsurance-support-desk/actions/runs/41255622252). See `VERIFICATION.md` and `DEMO.md`.
+Browser checks verified history, safe text, isolation and the new summary: uncertainty, reconciliation preserving unsaved edits, previous-delivery/new-draft distinction and explicit rejection. One provider delivery was recorded. All corrections were merged into main as `5c4f3da`, which passed [Windows/Ubuntu CI](https://github.com/aricesar/justinsurance-support-desk/actions/runs/41255622252). See `VERIFICATION.md`, `DEMO.md` and `ARCHITECTURE.md`.
 
 ## Operator instructions
 
@@ -42,4 +42,4 @@ Before a real GHL pilot, validate actual authentication/scopes, webhook signatur
 
 OpenAI Codex assisted code, tests and documentation. Accepted durable reservation instead of timeout retries, verified by concurrency/crash/ledger tests. The follow-up corrected two review findings and added regressions. No separate rejected suggestion is claimed.
 
-Approximately **2 hours total**, conservatively counting elapsed time from the candidate-reported 19:25 BRT start through final delivery around 21:25 BRT on October 31, 2026, including setup, analysis, implementation, reviews, Git/CI, tests, documentation and submission. This includes pauses rather than subtracting unmeasured gaps. The three-hour cap is respected on that basis; no precise active-time measurement is claimed.
+Approximately **2 hours 20 minutes**, including closure allowance through 21:45 BRT on October 31, 2026, conservatively counted from the candidate-reported 19:25 start. This includes setup, analysis, implementation, reviews, Git/CI, tests, documentation and delivery attempts, without subtracting pauses. No precise active timer is claimed. The estimate remains below the three-hour cap; actual company submission is not yet confirmed.
