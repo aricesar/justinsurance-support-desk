@@ -1,4 +1,5 @@
 import { DraftEditor } from './draft-editor.mjs';
+import { formatTimestamp as displayTime, formatAge } from './time.mjs';
 
 const $ = id => document.getElementById(id);
 const editor = new DraftEditor();
@@ -19,7 +20,7 @@ async function api(path, method = 'GET', body) {
 
 function controls() {
   const dirty = editor.isDirty(editorKey());
-  const unresolved = current?.attempts.some(attempt => ['PENDING', 'UNKNOWN'].includes(attempt.state));
+  const unresolved = current?.delivery_summary.blocks_new_dispatch;
   const attempted = current?.attempts.find(attempt => attempt.version === current.version);
   for (const button of document.querySelectorAll('button')) button.disabled = busy;
   $('identity').disabled = busy;
@@ -32,7 +33,7 @@ function controls() {
       button.disabled ||= dirty || unresolved || Boolean(attempted) || current?.approved_version !== current?.version
         || (action === 'automation' && current?.owner === 'human');
     }
-    if (action === 'reconcile') button.disabled ||= !unresolved;
+    if (action === 'reconcile') button.disabled ||= !current?.delivery_summary.can_check_delivery;
   }
   if (!current) return;
   const hints = [];
@@ -40,21 +41,31 @@ function controls() {
   if (dirty && editor.get(editorKey()).version !== current.version) {
     hints.push('The saved draft changed elsewhere. Copy your edits, then use Discard local edits to load the latest saved version before merging and saving.');
   }
-  if (unresolved) hints.push('Delivery is pending or UNKNOWN. Do not resend or recreate the reply. Use Check delivery; not_found is inconclusive. Escalate if it stays unresolved.');
-  else if (attempted?.state === 'FAILED') hints.push('The provider explicitly rejected this attempt before acceptance. Review and save a new version for an intentional new dispatch; this version cannot be retried.');
-  else if (attempted) hints.push('This version has already been dispatched. Review its result and reference below.');
-  else if (!dirty) hints.push(current.approved_version === current.version
-    ? 'This exact saved version is approved and ready to send.'
-    : 'Review the saved text and explicitly approve it before sending. Editing clears approval.');
+  if (unresolved || !dirty) hints.push(current.delivery_summary.next_action);
   $('guidance').textContent = hints.join(' ');
   $('discard').disabled = busy || !dirty;
 }
 
-function displayTime(value) {
-  if (!value) return 'Not recorded';
-  const iso = value.includes('T') ? value : value.replace(' ', 'T') + 'Z';
-  return new Date(iso).toLocaleString('en-US', { year: 'numeric', month: 'short', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit', timeZoneName: 'short' });
+function updateDeliveryAges() {
+  const summary = current?.delivery_summary;
+  if (!summary) return;
+  $('delivery-times').textContent = summary.attempt_id === null ? 'No attempt recorded.'
+    : `Started: ${displayTime(summary.created_at)} (${formatAge(summary.created_at)}) · Last checked: ${summary.last_checked_at ? `${displayTime(summary.last_checked_at)} (${formatAge(summary.last_checked_at)})` : 'Never'}`;
+}
+
+function renderDeliverySummary(summary) {
+  $('delivery-summary').className = `delivery-summary${summary.needs_attention ? ' needs-attention' : ''}`;
+  $('delivery-title').textContent = summary.title;
+  $('delivery-explanation').textContent = summary.explanation;
+  $('delivery-reason').textContent = `Reason: ${summary.reason}`;
+  $('delivery-reason').hidden = summary.attempt_id === null;
+  $('delivery-next-action').textContent = `Next safe action: ${summary.next_action}`;
+  $('delivery-warning').hidden = !summary.warning;
+  $('delivery-warning').textContent = summary.warning;
+  $('delivery-reference').textContent = summary.client_ref
+    ? `Reply v${summary.attempt_version} · Reference: ${summary.client_ref}${summary.provider_id ? ` · Provider confirmation: ${summary.provider_id}` : ''}`
+    : `Current draft: v${summary.current_draft_version}`;
+  updateDeliveryAges();
 }
 
 const eventLabels = {
@@ -128,6 +139,7 @@ function render(ticket, { saved = false } = {}) {
   $('state').textContent = `Owner: ${ticket.owner} | Delivery: ${ticket.send_state} | Draft v${ticket.version} | Approved v${ticket.approved_version ?? 'none'}`;
   $('draft').value = buffer.body;
   $('saved').textContent = ticket.draft || 'No saved draft.';
+  renderDeliverySummary(ticket.delivery_summary);
   renderHistory(ticket);
   $('attempts').textContent = ticket.attempts.map(attempt =>
     `v${attempt.version} · ${attempt.state}\nReference: ${attempt.client_ref}\nCreated: ${displayTime(attempt.created_at)}\nUpdated: ${displayTime(attempt.updated_at)}\nLast checked: ${attempt.last_checked_at ? displayTime(attempt.last_checked_at) : 'Never'}\nText: ${attempt.body}`
@@ -193,3 +205,5 @@ for (const button of buttons()) button.onclick = () => act(async () => {
   render(await api(`/api/tickets/${selected}/${action}`, 'POST', body), { saved: action === 'draft' });
 });
 act(refresh);
+// Display-only clock updates: no polling, dispatch or reconciliation is triggered.
+setInterval(updateDeliveryAges, 15000);

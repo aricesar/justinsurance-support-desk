@@ -6,6 +6,8 @@ All ticket operations enforce the server-resolved organization. Authenticated we
 
 Saved drafts now have immutable revisions linked to approvals and attempts. A chronological timeline uses persisted local event order, with unknown legacy order shown separately. Migration 2 recovers available snapshots without inventing missing authors/times and rejects conflicting historical bodies. Earlier improvements preserve unsaved edits, validate UTF-8/bytes, detect stale saves and add structured audit, attempt times, indexes and safe errors. The mock, original routes and fixture identities remain unchanged.
 
+DeliveryPolicy centralizes dispatch guards and evidence-based transitions; terminal outcomes resist late responses. The operator summary shows reason, reference, attempt/draft versions, elapsed time and next safe action. Unknown persisted states block dispatch. Displayed ages update locally without polling or sending.
+
 ## Run and verification
 
 Use Node 24+. No dependencies need installation. From the source directory, in separate terminals:
@@ -16,9 +18,9 @@ npm start
 npm test
 ```
 
-Open http://127.0.0.1:4300. On Windows, `npm.cmd` is equivalent. The latest local suite passed **70 tests, zero failures/skips**, covering original safeguards plus immutable revisions, scoped history, stable ordering and migration rollback. HTTP tests inspect the real mock ledger and kill/restart the app without resetting state. Two regression tests failed before the original fixes; seven feature tests failed before history implementation.
+Open http://127.0.0.1:4300. On Windows, `npm.cmd` is equivalent. The latest local suite passed **89 tests, zero failures/skips**, including transition/evidence rules, operator guidance, immutable revisions, isolation, concurrent sends and migration rollback. HTTP tests inspect the real mock ledger and kill/restart the app without resetting state. Two regressions failed before original fixes; seven feature tests failed before history implementation.
 
-Browser checks verified retained old text/approval, new-version approval, interleaved customer/reply/status events, safe text rendering, tenant isolation and reconciliation with one provider delivery. Published commit `7f6ba4f` passed Windows/Ubuntu CI. At local verification, the latest enhancement had not run remotely; check CI for the submitted commit. See `VERIFICATION.md`.
+Browser checks verified history, safe text, isolation and the new summary: uncertain delivery, reconciliation preserving unsaved edits, previous-delivery/new-draft distinction and explicit rejection. One provider delivery was recorded. Published commit `7f6ba4f` passed Windows/Ubuntu CI; no remote result is claimed for this local change. See `VERIFICATION.md`.
 
 ## Operator instructions
 

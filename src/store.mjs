@@ -2,10 +2,9 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { migrateHistory, historyView } from './history.mjs';
+import { deliverySummary } from './delivery-summary.mjs';
 
-export class DeskError extends Error {
-  constructor(status, message) { super(message); this.status = status; }
-}
+export { DeskError } from './errors.mjs';
 
 export function openStore(path) {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
@@ -108,7 +107,8 @@ export function ticketView(db, row) {
   const revisions = db.prepare('SELECT * FROM draft_revisions WHERE ticket_id = ? AND tenant_id = ? ORDER BY version')
     .all(row.id, row.tenant_id);
   return {
-    ...row, messages, audit, attempts, ...historyView(row, { messages, audit, attempts, revisions })
+    ...row, messages, audit, attempts, ...historyView(row, { messages, audit, attempts, revisions }),
+    delivery_summary: deliverySummary(row, { attempts, audit })
   };
 }
 

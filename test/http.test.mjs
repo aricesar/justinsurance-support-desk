@@ -142,6 +142,11 @@ test('HTTP contract, real provider ledger and process crash recovery', { timeout
     const result = await post('send');
     assert.equal(result.status, 200);
     assert.equal(result.data.send_state, 'UNKNOWN');
+    assert.equal(result.data.delivery_summary.state, 'UNKNOWN');
+    assert.equal(result.data.delivery_summary.title, 'Delivery uncertain');
+    assert.equal(result.data.delivery_summary.blocks_new_dispatch, true);
+    assert.equal(result.data.delivery_summary.client_ref, result.data.attempts.at(-1).client_ref);
+    assert.match(result.data.delivery_summary.warning, /Do not resend/);
     assert.equal((await post('send')).status, 409);
     assert.equal((await ledger()).length, 2);
     assert.equal((await post('reconcile')).data.send_state, 'SENT');
@@ -206,7 +211,7 @@ test('HTTP contract, real provider ledger and process crash recovery', { timeout
   });
 
   await t.test('frontend modules are served as JavaScript from a fixed allowlist', async () => {
-    for (const path of ['/app.mjs', '/draft-editor.mjs']) {
+    for (const path of ['/app.mjs', '/draft-editor.mjs', '/time.mjs']) {
       const response = await fetch(appUrl + path);
       assert.equal(response.status, 200);
       assert.match(response.headers.get('Content-Type'), /javascript/);

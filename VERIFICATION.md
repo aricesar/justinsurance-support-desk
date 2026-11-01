@@ -1,6 +1,6 @@
 # Verification record
 
-Current result: **70 local tests passed** for the timeline/history enhancement.
+Current result: **89 local tests passed** for the delivery policy/operator summary.
 Earlier 37- and 53-test results below describe previous implementation stages.
 
 ## Environment and commands
@@ -175,3 +175,50 @@ files and excludes databases, Git metadata, dependencies and preparation files.
 At 20:54:20 BRT, this stage had taken 12 minutes 32 seconds; reserve approximately
 13 minutes including final packaging/closure. Add this stage to all earlier active
 work; the previously unmeasured duration is still not represented as zero.
+
+## Delivery policy and operator summary
+
+Started 2026-10-31 at 20:59:34 BRT. This bounded follow-up centralizes dispatch
+guards, outcome classification and allowed transitions in a pure DeliveryPolicy.
+Persistence/network orchestration remain in the service. Transition checks use
+the current stored attempt state; terminal evidence cannot be overwritten by late
+results. Explicit rejection of the same in-flight send may resolve an earlier
+inconclusive lookup. Unknown persisted states fail closed for new dispatches.
+
+The ticket response adds a stable delivery_summary projection. The UI displays
+reason, reference, reply/current-draft versions, absolute times, elapsed ages and
+safe next action. Age display updates every 15 seconds without network polling.
+It does not infer delivery from elapsed time or retry an uncertain attempt.
+
+`npm.cmd test`: **89 passed, 0 failed, 0 skipped**, exit 0; 8.429 seconds reported
+by the runner. New coverage exercises the transition/evidence matrix, forged or
+unsupported transitions, takeover dispatch guards, terminal-state protection,
+operator guidance across states, stable summary timestamps, missing/future ages,
+SQLite UTC interpretation, late explicit rejection and unsupported persisted
+state dispatch refusal. Existing service, migration, HTTP, real mock ledger and
+actual crash/restart tests remain included. Fixed asset serving includes time.mjs.
+
+Browser checks on separate synthetic databases confirmed no-attempt, awaiting
+approval and approved states; UNKNOWN blocks repeat sends; Check delivery resolves
+the same reference without losing unsaved edits; a new draft does not inherit
+the previous reply's delivery; explicit rejection shows FAILED and disables
+repeat send; Beta has its own empty summary. The unchanged provider ledger held
+exactly one delivery after acceptance/timeout, lookup and a rejected second reply.
+Screenshots and logs are retained outside the source package. Preview processes
+and the temporary tab were closed. These are manual, not automated browser tests.
+
+No schema change, dependency, route, fixture identity or mock behavior changed.
+The new changes remain local at this checkpoint; no commit, push, company message
+or submission was performed for this stage. Remote CI, real GHL, multi-process
+workers and production/load verification are not claimed.
+
+Clean source ZIP extraction: **89 passed, 0 failed, 0 skipped**, exit 0; 6.897
+seconds reported by the runner. All 36 packaged files passed the English-language
+scan; databases, dependencies, Git metadata and preparation files are excluded.
+Application/test/workflow files were compared with the tested extraction before
+final packaging. CONTRACT.md, package.json, mock provider, replay script and the
+original smoke tests remain unchanged from the preceding implementation.
+At 21:12:18 BRT this stage had taken 12 minutes 44 seconds. Reserve approximately
+14 minutes including final packaging/closure. Add this and intervening reviews/
+Git activity to earlier active work; the overall remaining budget is still not
+verifiable because earlier analysis/setup time was not measured.

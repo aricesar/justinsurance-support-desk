@@ -1,4 +1,4 @@
-import { DeskError } from './store.mjs';
+import { DeskError } from './errors.mjs';
 
 export const MAX_BODY_BYTES = 100000;
 

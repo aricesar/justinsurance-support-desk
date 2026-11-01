@@ -15,7 +15,8 @@ const service = new DeskService({ databasePath: process.env.DESK_DB || resolve('
 const assets = new Map([
   ['/', ['index.html', 'text/html; charset=utf-8']],
   ['/app.mjs', ['app.mjs', 'text/javascript; charset=utf-8']],
-  ['/draft-editor.mjs', ['draft-editor.mjs', 'text/javascript; charset=utf-8']]
+  ['/draft-editor.mjs', ['draft-editor.mjs', 'text/javascript; charset=utf-8']],
+  ['/time.mjs', ['time.mjs', 'text/javascript; charset=utf-8']]
 ].map(([path, [file, type]]) => [path, { type,
   body: readFileSync(fileURLToPath(new URL('../public/' + file, import.meta.url))) }]));
 const json = (res, status, body) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };

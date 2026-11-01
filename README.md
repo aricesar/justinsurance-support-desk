@@ -124,3 +124,22 @@ updates, deletion and replacement; attempt links must match ticket/version/text.
 
 The published pre-enhancement commit `7f6ba4f` passed GitHub Actions on Windows and
 Ubuntu. This local history enhancement requires its own CI run after publication.
+
+### Delivery policy and operator summary
+
+`DeliveryPolicy` centralizes dispatch guards and provider-evidence classification.
+The service retains short database transactions and provider I/O orchestration.
+PENDING can become UNKNOWN, SENT or FAILED; UNKNOWN can stay UNKNOWN or resolve
+to SENT/FAILED. SENT requires provider confirmation. FAILED requires an explicit
+send rejection before acceptance; lookup absence never establishes failure.
+SENT and FAILED are terminal. Transition checks read the current stored attempt
+state so late responses cannot overwrite terminal evidence. Unsupported persisted
+states block dispatch and require investigation. No transition authorizes retry.
+
+The authorized ticket response adds stable `delivery_summary` data: attempt and
+draft versions, reference, reason, timestamps, dispatch block and safe next action.
+The UI presents this above the timeline, distinguishes a previously delivered
+reply from a newer draft, and warns against resending uncertain attempts.
+Elapsed ages refresh locally every 15 seconds; this does not poll the provider,
+send messages or change persistence. Missing times remain unknown. Schema version
+2, existing routes, fixture identities and provider semantics are unchanged.

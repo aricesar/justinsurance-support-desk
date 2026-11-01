@@ -1,4 +1,4 @@
-import { DeskError } from './store.mjs';
+import { DeskError } from './errors.mjs';
 
 export function validateVersion(version) {
   if (version !== undefined && (!Number.isSafeInteger(version) || version < 0)) {
