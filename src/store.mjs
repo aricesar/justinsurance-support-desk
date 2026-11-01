@@ -1,10 +1,10 @@
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { migrateHistory, historyView } from './history.mjs';
+import { deliverySummary } from './delivery-summary.mjs';
 
-export class DeskError extends Error {
-  constructor(status, message) { super(message); this.status = status; }
-}
+export { DeskError } from './errors.mjs';
 
 export function openStore(path) {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
@@ -12,6 +12,8 @@ export function openStore(path) {
   db.exec(`
     PRAGMA journal_mode = WAL;
     PRAGMA busy_timeout = 3000;
+    PRAGMA foreign_keys = ON;
+    PRAGMA recursive_triggers = ON;
     CREATE TABLE IF NOT EXISTS tickets (
       id INTEGER PRIMARY KEY, tenant_id TEXT NOT NULL, contact TEXT NOT NULL,
       subject TEXT NOT NULL, owner TEXT NOT NULL DEFAULT 'automation',
@@ -39,11 +41,39 @@ export function openStore(path) {
     INSERT OR IGNORE INTO tickets(id, tenant_id, contact, subject) VALUES
       (101, 'alpha', 'Jordan Demo', 'Cannot resume my practice exam'),
       (202, 'beta', 'Casey Example', 'Course completion is missing');
+  `);
+  try {
+    transaction(db, () => migrateReliability(db));
+    transaction(db, () => migrateHistory(db));
+  } catch (error) { db.close(); throw error; }
+  return db;
+}
+
+function migrateReliability(db) {
+  if (db.prepare('PRAGMA user_version').get().user_version >= 1) return;
+  // Existing rows keep NULL for historical times/actors we cannot reconstruct.
+  for (const [table, columns] of Object.entries({
+    attempts: { created_at: 'TEXT', updated_at: 'TEXT', last_checked_at: 'TEXT' },
+    audit: { tenant_id: 'TEXT', actor_id: 'TEXT', version: 'INTEGER', client_ref: 'TEXT',
+      outcome: 'TEXT', reason: 'TEXT', provider_id: 'TEXT' }
+  })) {
+    const present = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map(column => column.name));
+    for (const [name, type] of Object.entries(columns)) {
+      if (!present.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
+    }
+  }
+  db.exec(`
     INSERT OR IGNORE INTO inbound_events(tenant_id, event_id, ticket_id)
       SELECT t.tenant_id, m.event_id, m.ticket_id FROM messages m
       JOIN tickets t ON t.id = m.ticket_id ORDER BY m.id;
+    UPDATE audit SET tenant_id = (SELECT tenant_id FROM tickets WHERE tickets.id = audit.ticket_id);
+    CREATE INDEX IF NOT EXISTS tickets_tenant ON tickets(tenant_id);
+    CREATE INDEX IF NOT EXISTS messages_ticket ON messages(ticket_id);
+    CREATE INDEX IF NOT EXISTS audit_ticket ON audit(ticket_id);
+    CREATE INDEX IF NOT EXISTS attempts_unresolved ON attempts(ticket_id, id)
+      WHERE state IN ('PENDING', 'UNKNOWN');
+    PRAGMA user_version = 1;
   `);
-  return db;
 }
 
 // Callbacks must be synchronous: never hold the write lock during network I/O.
@@ -59,17 +89,26 @@ export function transaction(db, work) {
   }
 }
 
-export function record(db, id, action, detail) {
-  db.prepare('INSERT INTO audit(ticket_id, action, detail) VALUES (?, ?, ?)')
-    .run(id, action, detail);
+export function record(db, id, action, detail, context = {}) {
+  const ticket = db.prepare('SELECT tenant_id, version FROM tickets WHERE id = ?').get(id);
+  db.prepare(`INSERT INTO audit(ticket_id, action, detail, created_at, tenant_id, actor_id,
+    version, client_ref, outcome, reason, provider_id, revision_id, attempt_id, message_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(id, action, detail, new Date().toISOString(), ticket.tenant_id, context.actorId || 'system',
+      context.version ?? ticket.version, context.clientRef ?? null, context.outcome ?? null,
+      context.reason ?? action, context.providerId ?? null,
+      context.revisionId ?? null, context.attemptId ?? null, context.messageId ?? null);
 }
 
 export function ticketView(db, row) {
+  const messages = db.prepare('SELECT * FROM messages WHERE ticket_id = ? ORDER BY id').all(row.id);
+  const audit = db.prepare('SELECT * FROM audit WHERE ticket_id = ? ORDER BY id').all(row.id);
+  const attempts = db.prepare('SELECT * FROM attempts WHERE ticket_id = ? ORDER BY id').all(row.id);
+  const revisions = db.prepare('SELECT * FROM draft_revisions WHERE ticket_id = ? AND tenant_id = ? ORDER BY version')
+    .all(row.id, row.tenant_id);
   return {
-    ...row,
-    messages: db.prepare('SELECT * FROM messages WHERE ticket_id = ? ORDER BY id').all(row.id),
-    audit: db.prepare('SELECT * FROM audit WHERE ticket_id = ? ORDER BY id').all(row.id),
-    attempts: db.prepare('SELECT * FROM attempts WHERE ticket_id = ? ORDER BY id').all(row.id)
+    ...row, messages, audit, attempts, ...historyView(row, { messages, audit, attempts, revisions }),
+    delivery_summary: deliverySummary(row, { attempts, audit })
   };
 }
 

@@ -70,8 +70,76 @@ temporary databases, and terminate only their own child processes. They need loc
 socket/process permissions and take roughly 10 seconds on this environment.
 
 The UI displays the saved text separately from unsaved edits. Save, review,
-explicitly approve, then send. Approval and send optionally accept `{ "version": N }`
+explicitly approve, then send. Draft save, approval and send optionally accept `{ "version": N }`
 to reject a stale UI view with 409; the original `{}` requests remain supported.
 An unresolved attempt blocks any new dispatch on that ticket, including a newly
 edited/approved version. `Check delivery` never sends. See `HANDOFF.md` for state
 semantics, operator recovery, verification and production limitations.
+
+### Reliability follow-up
+
+- JSON bodies are limited to 100000 **bytes**, decoded without corrupting split
+  UTF-8 characters, and must be objects. Invalid encoding is rejected.
+- Unsaved edits are kept in memory per identity/ticket across the application's
+  Refresh, takeover, reconciliation and ticket switching. They do not survive a
+  browser reload/closure. **Discard local edits** explicitly reloads the saved text.
+- The UI sends the version originally edited when saving. A conflicting update
+  returns 409 and keeps the local text. Copy it, discard/reload the latest saved
+  draft, then merge and save. Legacy requests without version remain supported.
+- Attempts include `created_at`, `updated_at` and `last_checked_at`. Historical
+  times that were never recorded remain null rather than being invented.
+- Audit entries include tenant, actor, draft version, reference, outcome and
+  reason. Technical errors return a request reference and a safe message; server
+  error logs contain no request bodies, credentials or raw database errors.
+- Schema version 1 adds audit/time columns and query indexes, and backfills the
+  event receipt registry once. Existing data and unresolved attempts are retained.
+- `.github/workflows/test.yml` configures Node 24 tests on Ubuntu and Windows,
+  read-only repository permissions and no dependency-install step. It runs after
+  the workflow is pushed; configuring it locally does not prove a remote run.
+
+### Timeline and immutable saved revisions
+
+Every new draft save creates a read-only revision with its exact text, author and
+save time in the same transaction as the current draft and audit update. Approval
+and dispatch reference that revision. A later edit clears active approval while
+retaining the previous text and historical approval record. **Saved draft history**
+shows available versions, approval events and associated dispatch attempts.
+
+The conversation timeline interleaves inbound messages, saved/approved drafts,
+dispatch and delivery events in persisted local processing order. Its sequence
+remains stable across restarts and tied/backwards timestamps. Dispatch appears
+as PENDING; later UNKNOWN/SENT entries update the history without adding a second
+copy of the reply. Timestamps show desk processing time, not provider event time.
+
+`GET /api/tickets/:id` retains its existing fields and adds `revisions`, `timeline`
+and `legacy_history`. These fields use the same server-side tenant authorization.
+No new HTTP routes or write actions for historical revisions were added.
+
+Schema migration 2 recovers available old snapshots from attempts/current drafts
+and links existing audit evidence. Missing historical text, save times or authors
+are not invented. Records without known ordering appear separately as **Earlier
+history**. Conflicting bodies for the same old ticket/version abort migration
+without overwriting those records and require investigation. New snapshots reject
+updates, deletion and replacement; attempt links must match ticket/version/text.
+
+The published pre-enhancement commit `7f6ba4f` passed GitHub Actions on Windows and
+Ubuntu. This local history enhancement requires its own CI run after publication.
+
+### Delivery policy and operator summary
+
+`DeliveryPolicy` centralizes dispatch guards and provider-evidence classification.
+The service retains short database transactions and provider I/O orchestration.
+PENDING can become UNKNOWN, SENT or FAILED; UNKNOWN can stay UNKNOWN or resolve
+to SENT/FAILED. SENT requires provider confirmation. FAILED requires an explicit
+send rejection before acceptance; lookup absence never establishes failure.
+SENT and FAILED are terminal. Transition checks read the current stored attempt
+state so late responses cannot overwrite terminal evidence. Unsupported persisted
+states block dispatch and require investigation. No transition authorizes retry.
+
+The authorized ticket response adds stable `delivery_summary` data: attempt and
+draft versions, reference, reason, timestamps, dispatch block and safe next action.
+The UI presents this above the timeline, distinguishes a previously delivered
+reply from a newer draft, and warns against resending uncertain attempts.
+Elapsed ages refresh locally every 15 seconds; this does not poll the provider,
+send messages or change persistence. Missing times remain unknown. Schema version
+2, existing routes, fixture identities and provider semantics are unchanged.

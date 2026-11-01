@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { createServer } from 'node:net';
+import { request as httpRequest } from 'node:http';
+import { DatabaseSync } from 'node:sqlite';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, basename, resolve } from 'node:path';
@@ -69,7 +71,7 @@ test('HTTP contract, real provider ledger and process crash recovery', { timeout
     const r = await fetch(appUrl + path, { method, headers: { 'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}), ...headers },
       body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(8000) });
-    return { status: r.status, data: await r.json() };
+    return { status: r.status, requestId: r.headers.get('X-Request-Id'), data: await r.json() };
   }
   const post = (action, body = {}, id = 101) => request(`/api/tickets/${id}/${action}`, { method: 'POST', body });
   async function mode(value) {
@@ -140,6 +142,11 @@ test('HTTP contract, real provider ledger and process crash recovery', { timeout
     const result = await post('send');
     assert.equal(result.status, 200);
     assert.equal(result.data.send_state, 'UNKNOWN');
+    assert.equal(result.data.delivery_summary.state, 'UNKNOWN');
+    assert.equal(result.data.delivery_summary.title, 'Delivery uncertain');
+    assert.equal(result.data.delivery_summary.blocks_new_dispatch, true);
+    assert.equal(result.data.delivery_summary.client_ref, result.data.attempts.at(-1).client_ref);
+    assert.match(result.data.delivery_summary.warning, /Do not resend/);
     assert.equal((await post('send')).status, 409);
     assert.equal((await ledger()).length, 2);
     assert.equal((await post('reconcile')).data.send_state, 'SENT');
@@ -201,5 +208,82 @@ test('HTTP contract, real provider ledger and process crash recovery', { timeout
     assert.equal((await post('send')).status, 409);
     assert.equal((await post('reconcile')).data.send_state, 'SENT');
     assert.equal((await ledger()).length, 5);
+  });
+
+  await t.test('frontend modules are served as JavaScript from a fixed allowlist', async () => {
+    for (const path of ['/app.mjs', '/draft-editor.mjs', '/time.mjs']) {
+      const response = await fetch(appUrl + path);
+      assert.equal(response.status, 200);
+      assert.match(response.headers.get('Content-Type'), /javascript/);
+      assert.ok((await response.text()).length > 100);
+    }
+    assert.equal((await request('/src/store.mjs')).status, 404);
+  });
+
+  await t.test('unexpected database errors return a safe message and matching request reference', async () => {
+    const inspector = new DatabaseSync(join(directory, 'desk.sqlite'));
+    try {
+      inspector.exec("CREATE TRIGGER test_internal_error BEFORE INSERT ON audit WHEN NEW.action = 'draft_updated' BEGIN SELECT RAISE(ABORT, 'PRIVATE_SQL_DIAGNOSTIC'); END");
+      const before = (await request('/api/tickets/101')).data;
+      const response = await post('draft', { body: 'must roll back' });
+      assert.equal(response.status, 500);
+      assert.equal(response.data.code, 'INTERNAL_ERROR');
+      assert.equal(response.data.requestId, response.requestId);
+      assert.match(response.data.requestId, /^[a-f0-9-]{36}$/);
+      assert.equal(JSON.stringify(response.data).includes('PRIVATE_SQL_DIAGNOSTIC'), false);
+      assert.deepEqual((await request('/api/tickets/101')).data, before);
+    } finally { inspector.exec('DROP TRIGGER IF EXISTS test_internal_error'); inspector.close(); }
+  });
+
+  async function rawPost(path, bytes, split) {
+    return new Promise((resolve, reject) => {
+      const req = httpRequest(appUrl + path, { method: 'POST', headers: {
+        'Content-Type': 'application/json', Authorization: 'Bearer demo-alpha-token'
+      } }, res => {
+        const chunks = [];
+        res.on('data', chunk => chunks.push(chunk));
+        res.on('end', () => resolve({ status: res.statusCode, data: JSON.parse(Buffer.concat(chunks).toString('utf8')) }));
+        res.on('error', reject);
+      });
+      req.on('error', reject);
+      req.write(bytes.subarray(0, split));
+      setTimeout(() => req.end(bytes.subarray(split)), 40);
+    });
+  }
+
+  await t.test('real chunked HTTP preserves fragmented UTF-8 draft text', async () => {
+    const expected = 'Hello \u{1F642} - exact draft';
+    const bytes = Buffer.from(JSON.stringify({ body: expected }));
+    const response = await rawPost('/api/tickets/101/draft', bytes, bytes.indexOf(Buffer.from('🙂')) + 1);
+    assert.equal(response.status, 200);
+    assert.equal(response.data.draft, expected);
+    assert.equal((await request('/api/tickets/101')).data.draft, expected);
+  });
+
+  await t.test('oversize chunked UTF-8 body receives 413 without socket failure or business effects', async () => {
+    const before = (await request('/api/tickets/101')).data;
+    const bytes = Buffer.from(JSON.stringify({ body: '\u00E1'.repeat(51000) }));
+    const response = await rawPost('/api/tickets/101/draft', bytes, 60000);
+    assert.equal(response.status, 413);
+    assert.deepEqual((await request('/api/tickets/101')).data, before);
+    assert.equal((await post('approve', { version: 'bad' })).status, 400);
+  });
+
+  await t.test('HTTP exposes immutable revisions and scoped timeline links across process restart', async () => {
+    const before = (await request('/api/tickets/101')).data;
+    assert.ok(before.revisions.length >= 1);
+    const firstAttempt = before.attempts[0];
+    const revision = before.revisions.find(r => r.id === firstAttempt.revision_id);
+    assert.equal(revision.body, firstAttempt.body);
+    assert.ok(revision.approvals.length >= 1);
+    assert.equal(before.timeline.filter(e => e.kind === 'dispatch_reserved').length, before.attempts.length);
+    assert.deepEqual(before.timeline.map(e => e.sequence), [...before.timeline.map(e => e.sequence)].sort((a, b) => a - b));
+    assert.equal((await request('/api/tickets/202')).status, 404);
+    await stop(app);
+    app = launch('src/server.mjs');
+    await ready(appUrl + '/', app);
+    const after = (await request('/api/tickets/101')).data;
+    assert.deepEqual(after.revisions, before.revisions);
+    assert.deepEqual(after.timeline, before.timeline);
   });
 });

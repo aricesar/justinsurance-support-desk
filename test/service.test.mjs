@@ -294,3 +294,33 @@ test('failure saving provider result leaves reserved attempt blocked and recover
   assert.equal(calls.length, 1);
   assert.equal((await s.reconcile(alpha, 101)).send_state, 'SENT');
 });
+
+test('late explicit rejection can safely resolve a previously inconclusive lookup of the same in-flight attempt', async t => {
+  const response = Promise.withResolvers();
+  let sends = 0;
+  const { s } = fixture(t, { send: () => { sends++; return response.promise; }, lookup: async () => ({ state: 'not_found' }) });
+  approve(s);
+  const sending = s.sendReply(alpha, 101);
+  const inconclusive = await s.reconcile(alpha, 101);
+  assert.equal(inconclusive.send_state, 'UNKNOWN');
+  assert.equal(inconclusive.delivery_summary.blocks_new_dispatch, true);
+  response.reject(Object.assign(new Error('explicit rejection'), { kind: 'not_accepted' }));
+  const rejected = await sending;
+  assert.equal(rejected.send_state, 'FAILED');
+  assert.equal(rejected.delivery_summary.reason_code, 'provider_rejected_before_acceptance');
+  assert.equal(rejected.attempts[0].client_ref, inconclusive.attempts[0].client_ref);
+  assert.equal(sends, 1);
+});
+
+test('unsupported persisted state blocks a newer approved dispatch and requests investigation', async t => {
+  const { s, calls } = fixture(t);
+  approve(s, 'first');
+  await s.sendReply(alpha, 101);
+  s.db.exec("UPDATE attempts SET state = 'unsupported' WHERE ticket_id = 101");
+  approve(s, 'new approved draft');
+  await assert.rejects(s.sendReply(alpha, 101), conflict);
+  assert.equal(calls.length, 1);
+  const result = s.getTicket(alpha, 101).delivery_summary;
+  assert.equal(result.blocks_new_dispatch, true);
+  assert.equal(result.can_check_delivery, false);
+});
